@@ -59,7 +59,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mvp-source-not-a-signed-app
-          path: dist/*
+          path: |
+            dist/LocalVisionSolver-MVP-source.zip
+            dist/LocalVisionSolver-MVP-source.zip.sha256
           retention-days: 14
 
   apple:

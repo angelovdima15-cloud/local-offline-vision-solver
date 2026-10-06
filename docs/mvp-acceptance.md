@@ -4,7 +4,7 @@
 
 - 45 Python-тестов: исходный solver, LAN API, serial queue, idempotent retries, лимиты, ошибки, restart, package integrity, Bonjour type, Xcode references/plists/schemes и Python/Swift binary fixture; API также проверен вместе с настоящим pipeline-кодом и детерминированными ответами inference adapter.
 - Настоящий HTTP smoke: две JPEG-страницы → submit → QUEUED/RENDERING/COMPLETE → download package → SHA256 verification → download PNG → delete session.
-- Swift sources, два native targets, companion identifiers и shared schemes подготовлены. `swift test`/`xcodebuild` здесь не запускались — отсутствуют Apple SDK/Xcode.
+- Swift sources, два native targets, companion identifiers и shared schemes подготовлены. На Windows нет Apple SDK; `swift test`/`xcodebuild` успешно выполнены в GitHub macOS CI.
 
 ## На Mac и настоящей паре iPhone/Watch
 
@@ -35,7 +35,16 @@
 - Полный Windows run после исправления test helper: **45 passed, 1 warning**, 10.87 s pytest; лог `.cache/dev-checks/20261006-230324-7c6dbf.log`.
 - Изолированный HTTP run: две синтетические JPEG-страницы, пакет/PNG и SHA256 проверены; лог/отчёт `.cache/acceptance-http/20261006-230828-8ec45c/`. Сервер остановлен самим runner.
 - Исправлены временный каталог test helper и UTF-8 вывода.
-- В Apple-коде исправлены гонка unpack/prune на Watch и неполная проверка replay metadata. Добавлены Swift regression tests для конфликтующего текста и восстановления отсутствующей карточки. **Эти Swift-тесты пока не выполнены.**
-- Подготовлен `.github/workflows/validate.yml`: Windows tests/HTTP и macOS Swift/Xcode simulator builds. Workflow не запускался до публикации репозитория.
+- В Apple-коде исправлены гонка unpack/prune на Watch и неполная проверка replay metadata. Добавлены Swift regression tests для конфликтующего текста и восстановления отсутствующей карточки. **Все 5 Swift-тестов успешно выполнены.**
+- GitHub CI успешно выполнен: [run 37511112828](https://github.com/angelovdima15-cloud/local-offline-vision-solver/actions/runs/37511112828). Пройдены Windows tests/HTTP, Swift tests, обе simulator-сборки и unsigned device IPA. В IPA проверены наличие обоих executables, device platforms и соответствие companion ID. Установка на настоящие устройства пока не проверена.
+
+## Готовые сборки для установки — 6 октября 2026
+
+- [CI run 37513507857](https://github.com/angelovdima15-cloud/local-offline-vision-solver/actions/runs/37513507857) завершён успешно: Windows backend, 45 Python-тестов, настоящий HTTP, PyInstaller EXE, 5 Swift-тестов, Apple simulator/device builds.
+- `LocalVisionSolver-Windows-x64.zip`: переносимый EXE с Python/dependencies внутри; отдельный EXE скачивает runtime/model при первичной установке. Проверка frozen backend выполняется автоматически до создания ZIP.
+- Скачанный EXE повторно запущен на текущей Windows-машине: две страницы через настоящий HTTP, проверка SHA256 пакета, два математических и два казахских PNG. Образцы проверены визуально. Локальный HTTP report: `.cache/acceptance-http/20261006-234907-df8d89/report.json`.
+- `LocalVisionSolver-unsigned.ipa`: iPhoneOS/watchOS device binaries, вложенный Watch bundle, совпадающий companion ID. Подпись Apple и установка на устройства остаются необходимыми.
+- `LocalVisionSolver-Customer.zip` содержит только готовые ZIP/IPA, их SHA256 и инструкцию. Исходники, модели, личные фотографии, токены и development tools в клиентский пакет не входят.
+- Аппаратная приёмка Qwen/RTX 4060/iPhone/Watch остаётся невыполненной; эти сборки не подтверждают качество ответов, VRAM, целевую задержку или установленное приложение на часах.
 - `doctor` подтверждает отсутствие локальных llama executable/model/projector; здесь AI mode не готов. Это согласуется с прежним решением запускать модель позже на RTX 4060.
 - У заказчика Windows/iPhone/Watch, нет Mac и Apple Developer Program. Маршрут подписанной установки не завершён; см. `DELIVERY.md`.

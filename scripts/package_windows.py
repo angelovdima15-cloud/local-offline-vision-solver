@@ -13,6 +13,11 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def checksum_file(path: Path) -> str:
+    with path.open("rb") as handle:
+        return hashlib.file_digest(handle, "sha256").hexdigest()
+
+
 def main() -> int:
     if os.name != "nt":
         raise RuntimeError("Build this package on Windows")
@@ -52,7 +57,7 @@ def main() -> int:
     manifest = {"kind": "portable Windows x64 backend", "version": "0.2.0",
                 "model_assets_included": False, "hardware_acceptance_complete": False,
                 "frozen_http_transport_check": "passed",
-                "files": {f.relative_to(package).as_posix(): hashlib.file_digest(f.open("rb"), "sha256").hexdigest()
+                "files": {f.relative_to(package).as_posix(): checksum_file(f)
                           for f in sorted(package.rglob("*")) if f.is_file()}}
     (package / "PACKAGE-MANIFEST.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     destination = ROOT / "dist" / "LocalVisionSolver-Windows-x64.zip"

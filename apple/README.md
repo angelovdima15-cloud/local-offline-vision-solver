@@ -1,8 +1,8 @@
 # iPhone + Apple Watch MVP
 
-При отсутствии Mac доступна подготовленная GitHub macOS build-проверка в `.github/workflows/validate.yml`, включая unsigned device IPA с вложенным Watch app. Она ещё не запускалась; IPA требует подписи перед установкой. Для клиента с Windows см. [DELIVERY.md](../DELIVERY.md), включая Sideloadly для iPhone и непроверенную установку Watch.
+GitHub macOS CI в `.github/workflows/validate.yml` успешно выполнил 5 Swift-тестов, обе simulator-сборки и unsigned device IPA с вложенным Watch app. IPA требует подписи перед установкой. Для клиента с Windows см. [DELIVERY.md](../DELIVERY.md), включая Sideloadly для iPhone и непроверенную установку Watch.
 
-Исходники native приложений без внешних Swift-пакетов. `LocalVisionSolver.xcodeproj` содержит `VisionPhone` (iOS 17+) и companion `VisionWatch` (watchOS 10+), общую библиотеку чтения пакета и shared schemes. Проект создан детерминированным `scripts/generate_xcode_project.py`; структурная проверка выполнена на Windows, **компиляция Apple SDK ещё не выполнена**.
+Исходники native приложений без внешних Swift-пакетов. `LocalVisionSolver.xcodeproj` содержит `VisionPhone` (iOS 17+) и companion `VisionWatch` (watchOS 10+), общую библиотеку чтения пакета и shared schemes. Проект создан детерминированным `scripts/generate_xcode_project.py`; структурная проверка выполнена на Windows, **компиляция Apple SDK выполнена в GitHub macOS CI**.
 
 ## Сборка на Mac
 
