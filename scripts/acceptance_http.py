@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import argparse
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--executable", type=Path, help="Check a frozen backend instead of the source package")
+    args = parser.parse_args()
+    backend = [str(args.executable.resolve())] if args.executable else [sys.executable, "-m", "local_vision_solver"]
     run = ROOT / ".cache" / "acceptance-http" / (datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid4().hex[:6])
     run.mkdir(parents=True)
     with socket.socket() as reservation:
@@ -29,7 +34,7 @@ def main() -> int:
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
     flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
     with (run / "server.log").open("w", encoding="utf-8") as log:
-        process = subprocess.Popen([sys.executable, "-m", "local_vision_solver", "--config", str(config),
+        process = subprocess.Popen([*backend, "--config", str(config),
                                     "serve", "--demo", "--no-discovery"], cwd=ROOT, env=env,
                                    stdout=log, stderr=subprocess.STDOUT, creationflags=flags)
         try:

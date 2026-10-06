@@ -17,7 +17,7 @@ jobs:
   windows:
     name: Windows backend and HTTP transport
     runs-on: windows-2025
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -31,6 +31,19 @@ jobs:
         run: python scripts/acceptance_http.py
       - name: Prepare source handoff
         run: python scripts/package_source.py
+      - name: Install portable packaging tools
+        run: python -m pip install "pyinstaller==6.22.3"
+      - name: Build and exercise the portable Windows executables
+        run: python scripts/package_windows.py
+      - name: Save portable Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable-windows-backend
+          path: |
+            dist/LocalVisionSolver-Windows-x64.zip
+            dist/LocalVisionSolver-Windows-x64.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
       - name: Save validation logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -40,6 +53,7 @@ jobs:
             .cache/dev-checks/*.log
             .cache/acceptance-http/**/report.json
             .cache/acceptance-http/**/server.log
+            .cache/portable-build/build.log
           retention-days: 7
       - name: Save source package
         uses: actions/upload-artifact@v4
