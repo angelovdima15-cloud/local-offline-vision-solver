@@ -1,0 +1,6 @@
+// Set your unique identifiers and Apple development team before installing on devices.
+VISION_IOS_BUNDLE_ID = local.personal.LocalVisionSolver
+VISION_WATCH_BUNDLE_ID = $(VISION_IOS_BUNDLE_ID).watchapp
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic
+#include? "Signing.local.xcconfig"

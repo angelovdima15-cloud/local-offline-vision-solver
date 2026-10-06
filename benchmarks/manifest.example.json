@@ -1,0 +1,13 @@
+{
+  "cases": [
+    {"id": "math_ru_01", "subject": "mathematics", "language": "ru", "images": ["private/math_ru_01.jpg"], "expected_fragments": [], "reference_notes": "Full derivation and substitution; annotate expert answer before benchmarking."},
+    {"id": "physics_ru_01", "subject": "physics", "language": "ru", "images": ["private/physics_ru_01.jpg"], "expected_fragments": [], "reference_notes": "Check formula, substitution, dimensions and units."},
+    {"id": "cs_en_01", "subject": "computer_science", "language": "en", "images": ["private/cs_en_01.jpg"], "expected_fragments": [], "reference_notes": "Check algorithm/code against all constraints; do not run generated code automatically."},
+    {"id": "ielts_writing_01", "subject": "english", "language": "en", "images": ["private/ielts_writing_01.jpg"], "expected_fragments": [], "reference_notes": "Full response, word count, task coverage and language quality."},
+    {"id": "kazakh_01", "subject": "kazakh", "language": "kk", "images": ["private/kazakh_01.jpg"], "expected_fragments": [], "reference_notes": "Full Kazakh answer and correct source interpretation."},
+    {"id": "geography_kk_01", "subject": "geography", "language": "kk", "images": ["private/geography_kk_01.jpg"], "expected_fragments": [], "reference_notes": "Check map labels/data and preserve Kazakh."},
+    {"id": "multiple_choice_01", "subject": "mathematics", "language": "ru", "images": ["private/multiple_choice_01.jpg"], "expected_fragments": [], "reference_notes": "Option and reasoning for every question."},
+    {"id": "multipage_reading_01", "subject": "english", "language": "en", "images": ["private/reading_page_01.jpg", "private/reading_page_02.jpg", "private/reading_page_03.jpg", "private/reading_questions.jpg"], "expected_fragments": [], "reference_notes": "All pages read jointly; questions may refer to early-page facts."}
+  ]
+}
+

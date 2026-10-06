@@ -1,0 +1,8 @@
+model = "gpt-6.1-sol"
+model_reasoning_effort = "high"
+service_tier = "default"
+tool_output_token_limit = 8000
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 2

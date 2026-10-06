@@ -1,0 +1,55 @@
+# Relative paths resolve against this file, not the caller's working directory.
+[inference]
+endpoint = "http://127.0.0.1:8081"
+model_alias = "qwen3-vl-local"
+timeout_seconds = 300
+initial_output_tokens = 4096
+maximum_output_tokens = 8192
+temperature = 0.1
+
+[runtime]
+executable = "runtime/llama/llama-server.exe"
+model = "models/Qwen3VL-8B-Instruct-Q4_K_M.gguf"
+projector = "models/mmproj-Qwen3VL-8B-Instruct-F16.gguf"
+# Q4_K_M is a starting candidate, NOT a benchmark winner.
+# Let llama.cpp fit GPU layers with a 1 GB margin. Benchmark before changing this.
+# On 4 GB, use 12 with the vision encoder on CPU as an initial candidate.
+gpu_layers = "auto"
+projector_on_gpu = true
+context_size = 16384
+batch_size = 512
+micro_batch_size = 128
+flash_attention = "on"
+kv_cache_type = "q8_0"
+vram_margin_megabytes = 1024
+
+[pipeline]
+session_directory = "sessions"
+max_pages = 12
+max_input_megabytes = 300
+max_reading_retries = 1
+max_corrections = 1
+latency_target_seconds = 60
+
+[render]
+# 46 mm Watch canvas, at 2x raster resolution. Configurable for the actual watch.
+width = 832
+height = 992
+font_size = 48
+minimum_math_font_size = 34
+margin = 28
+font_path = "C:/Windows/Fonts/segoeui.ttf"
+code_font_path = "C:/Windows/Fonts/consola.ttf"
+# mathtext: offline LaTeX mathematical subset. tex: installed latex + dvipng.
+math_engine = "mathtext"
+
+[server]
+host = "0.0.0.0"
+port = 8765
+advertise = true
+service_name = "Local Vision Solver"
+# Set advertise_address to the laptop LAN IPv4 only if automatic discovery chooses poorly.
+max_queued_jobs = 8
+max_page_megabytes = 60
+retain_sessions = true
+retention_hours = 24

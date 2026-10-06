@@ -1,0 +1,16 @@
+# ripgrep reads this even before the workspace becomes a Git repository.
+.venv/
+.cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+models/
+runtime/
+sessions/
+benchmarks/private/
+apple/.build/
+apple/.swiftpm/
+apple/**/xcuserdata/
+dist/

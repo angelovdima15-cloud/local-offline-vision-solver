@@ -1,0 +1,16 @@
+{
+  "detected_language": "ru",
+  "answered_question_ids": ["1"],
+  "final_answer": [{"kind": "math", "content": "x = 12"}],
+  "solution": [
+    {"kind": "text", "content": "Решим уравнение 3x + 4 = 40."},
+    {"kind": "math", "content": "3x = 40 - 4 = 36"},
+    {"kind": "math", "content": "x = \\frac{36}{3} = 12"},
+    {"kind": "text", "content": "Проверка: подставим полученное значение в исходное уравнение."},
+    {"kind": "math", "content": "3 \\cdot 12 + 4 = 40"}
+  ],
+  "numeric_checks": [{"label": "Подстановка", "left": "3 * 12 + 4", "right": "40", "absolute_tolerance": 0}],
+  "warnings": ["Демонстрационный ответ для проверки рендерера; не результат работы модели."],
+  "confidence": 1.0
+}
+

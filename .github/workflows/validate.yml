@@ -1,0 +1,94 @@
+name: Validate Windows and Apple source
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows backend and HTTP transport
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - name: Install tested dependency versions
+        run: python -m pip install -c requirements.lock.txt -e ".[test]"
+      - name: Run backend checks
+        run: python scripts/dev.py check tests
+      - name: Exercise an isolated real HTTP demo server
+        run: python scripts/acceptance_http.py
+      - name: Prepare source handoff
+        run: python scripts/package_source.py
+      - name: Save validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-validation-logs
+          path: |
+            .cache/dev-checks/*.log
+            .cache/acceptance-http/**/report.json
+            .cache/acceptance-http/**/server.log
+          retention-days: 7
+      - name: Save source package
+        uses: actions/upload-artifact@v4
+        with:
+          name: mvp-source-not-a-signed-app
+          path: dist/*
+          retention-days: 14
+
+  apple:
+    name: Apple SDK builds and package tests (unsigned)
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - name: Record Xcode environment
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks
+      - name: Validate Swift and simulator targets
+        shell: bash
+        run: |
+          mkdir -p .cache/apple-validation
+          set -o pipefail
+          bash scripts/check-apple.sh 2>&1 | tee .cache/apple-validation/build.log
+      - name: Build an unsigned device IPA for re-signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .cache/apple-validation
+          xcodebuild -project apple/LocalVisionSolver.xcodeproj -scheme VisionPhone \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -derivedDataPath .cache/xcode-device CODE_SIGNING_ALLOWED=NO build \
+            2>&1 | tee .cache/apple-validation/device-build.log
+          phone_app='.cache/xcode-device/Build/Products/Release-iphoneos/VisionPhone.app'
+          test -d "$phone_app/Watch/VisionWatch.app"
+          mkdir -p dist/ipa-staging/Payload
+          ditto "$phone_app" dist/ipa-staging/Payload/VisionPhone.app
+          (cd dist/ipa-staging && /usr/bin/zip -qry ../LocalVisionSolver-unsigned.ipa Payload)
+      - name: Save device IPA (requires re-signing before installation)
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-device-ipa-needs-resigning
+          path: dist/LocalVisionSolver-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
+      - name: Save Apple build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-build-logs
+          path: .cache/apple-validation/*.log
+          retention-days: 7
