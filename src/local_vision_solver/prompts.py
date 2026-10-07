@@ -23,7 +23,7 @@ English/IELTS: identify writing/reading/grammar; respect writing length and give
 Kazakh/geography: preserve Kazakh and use only labels/locations actually present in the photo.
 Multiple choice: selected option AND explanation, retaining question ids.
 Return full solution as ordered text/math/code blocks. Math blocks contain bare LaTeX without
-delimiters. Keep ONE short equation or one derivation step per block for a small watch screen;
+delimiters. Keep ONE short equation or one derivation step per block for a small phone screen;
 split wide equations into equivalent consecutive steps. Put prose/units explanations in text.
 Use standard fractions, powers, roots, integrals, sums and Greek commands; avoid align environments,
 custom macros and external TeX files. Code blocks must preserve indentation and all requested code.
@@ -54,3 +54,6 @@ Accept only if complete and correct, all audit flags true, and no unresolved iss
 Do not accept a candidate solely because the independent answer has the same final number.
 """
 
+NUMERIC_POLICY = "If numeric_checks is empty, declare numeric_checks_applicability=not_applicable and explain why in numeric_checks_reason. Missing checks cannot be represented as not_applicable. For numeric calculations provide explicit equalities."
+SOLVE += "\n"+NUMERIC_POLICY
+INDEPENDENT += "\n"+NUMERIC_POLICY

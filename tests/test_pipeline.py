@@ -27,7 +27,11 @@ def reading(page_count=1, **changes):
 def draft(**changes):
     value = json.loads((ROOT / "examples" / "answer_math.json").read_text(encoding="utf-8"))
     value["warnings"] = []
-    return value | changes
+    result=value | changes
+    if not result["numeric_checks"]:
+        result["numeric_checks_applicability"]="not_applicable"
+        result["numeric_checks_reason"]="No numeric equalities in this writing task"
+    return result
 
 
 def audit(**changes):
@@ -232,8 +236,8 @@ def test_no_result_is_released_if_context_erase_fails(environment, monkeypatch):
 
 def test_http_job_runs_real_pipeline_adapter_before_packaging(environment, tmp_path):
     import time
-    from fastapi.testclient import TestClient
-    from local_vision_solver.server import create_app
+    from api_support import TestClient
+    from api_support import create_app
     from local_vision_solver.package import inspect_package
     config, image, server = environment
     with TestClient(create_app(config, advertise=False)) as client:
@@ -251,8 +255,22 @@ def test_http_job_runs_real_pipeline_adapter_before_packaging(environment, tmp_p
         assert result["verification"]["independent_pass_completed"]
         assert result["verification"]["audit"]["verdict"] == "accept"
         assert server.erase_count == 2
-        file = tmp_path / "verified.lvsp"
+        file = tmp_path / "verified.zip"
         file.write_bytes(client.get(f"/v1/sessions/{identifier}/package").content)
         header = inspect_package(file)
         assert header["demo"] is False and header["session_id"] == identifier
         assert len(header["cards"]) == 2
+
+
+def test_inference_cache_refreshes_rewritten_crop(environment):
+    import base64
+    config,image,server=environment
+    with pipeline_module.LocalModel(config.inference) as model:
+        model.generate('UNDERSTANDING','Read',pipeline_module.Reading,[('Original',image)])
+        first=server.requests[-1]['messages'][1]['content'][-1]['image_url']['url']
+        Image.new('RGB',(1200,1600),'black').save(image)
+        model.generate('UNDERSTANDING_RETRY','Read again',pipeline_module.Reading,[('Detail',image)])
+        second=server.requests[-1]['messages'][1]['content'][-1]['image_url']['url']
+        assert first!=second
+        assert second.endswith(base64.b64encode(image.read_bytes()).decode())
+    assert model.encoded_views=={}

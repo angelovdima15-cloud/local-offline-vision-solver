@@ -1,21 +1,16 @@
-name: Validate Windows and Apple source
-
+name: Validate Vision desktop and installer
 on:
   push:
     branches: [main, master]
   pull_request:
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
   group: validate-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
-  windows:
-    name: Windows backend and HTTP transport
+  source:
     runs-on: windows-2025
     timeout-minutes: 25
     steps:
@@ -23,88 +18,71 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
-      - name: Install tested dependency versions
-        run: python -m pip install -c requirements.lock.txt -e ".[test]"
-      - name: Run backend checks
-        run: python scripts/dev.py check tests
-      - name: Exercise an isolated real HTTP demo server
-        run: python scripts/acceptance_http.py
-      - name: Prepare source handoff
-        run: python scripts/package_source.py
-      - name: Install portable packaging tools
-        run: python -m pip install "pyinstaller==6.22.3"
-      - name: Build and exercise the portable Windows executables
-        run: python scripts/package_windows.py
-      - name: Save portable Windows package
-        uses: actions/upload-artifact@v4
-        with:
-          name: portable-windows-backend
-          path: |
-            dist/LocalVisionSolver-Windows-x64.zip
-            dist/LocalVisionSolver-Windows-x64.zip.sha256
-          if-no-files-found: error
-          retention-days: 14
-      - name: Save validation logs
+      - run: python -m pip install -c requirements.lock.txt -e ".[test]"
+      - run: python -m pip install "playwright==1.63.0"
+      - run: python -m playwright install chromium
+      - run: python scripts/dev.py check tests
+      - run: python scripts/acceptance_http.py
+      - run: python scripts/check_browser.py
+      - run: python scripts/check_desktop.py
+      - run: python scripts/check_desktop.py --demo
+      - run: python scripts/check_desktop_views.py --scale 1
+      - run: python scripts/check_desktop_views.py --scale 1.25
+      - run: python scripts/check_desktop_views.py --scale 1.5
+      - run: python scripts/check_desktop_views.py --scale 2
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: windows-validation-logs
+          name: source-evidence
           path: |
             .cache/dev-checks/*.log
             .cache/acceptance-http/**/report.json
-            .cache/acceptance-http/**/server.log
-            .cache/portable-build/build.log
+            .cache/browser-checks/**/report.json
+            .cache/browser-checks/**/*.png
+            .cache/desktop-checks/**/report.json
+            .cache/desktop-checks/**/*.png
+            .cache/desktop-checks/**/*.log
+            .cache/desktop-view-checks/**/report.json
+            .cache/desktop-view-checks/**/*.png
+            .cache/desktop-view-checks/**/*.log
           retention-days: 7
-      - name: Save source package
-        uses: actions/upload-artifact@v4
-        with:
-          name: mvp-source-not-a-signed-app
-          path: |
-            dist/LocalVisionSolver-MVP-source.zip
-            dist/LocalVisionSolver-MVP-source.zip.sha256
-          retention-days: 14
-
-  apple:
-    name: Apple SDK builds and package tests (unsigned)
-    runs-on: macos-26
-    timeout-minutes: 25
+  installer:
+    needs: source
+    runs-on: windows-2025
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
-      - name: Record Xcode environment
-        run: |
-          xcodebuild -version
-          xcodebuild -showsdks
-      - name: Validate Swift and simulator targets
-        shell: bash
-        run: |
-          mkdir -p .cache/apple-validation
-          set -o pipefail
-          bash scripts/check-apple.sh 2>&1 | tee .cache/apple-validation/build.log
-      - name: Build an unsigned device IPA for re-signing
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p .cache/apple-validation
-          xcodebuild -project apple/LocalVisionSolver.xcodeproj -scheme VisionPhone \
-            -configuration Release -destination 'generic/platform=iOS' \
-            -derivedDataPath .cache/xcode-device CODE_SIGNING_ALLOWED=NO build \
-            2>&1 | tee .cache/apple-validation/device-build.log
-          phone_app='.cache/xcode-device/Build/Products/Release-iphoneos/VisionPhone.app'
-          test -d "$phone_app/Watch/VisionWatch.app"
-          mkdir -p dist/ipa-staging/Payload
-          ditto "$phone_app" dist/ipa-staging/Payload/VisionPhone.app
-          (cd dist/ipa-staging && /usr/bin/zip -qry ../LocalVisionSolver-unsigned.ipa Payload)
-      - name: Save device IPA (requires re-signing before installation)
-        uses: actions/upload-artifact@v4
+      - uses: actions/setup-python@v6
         with:
-          name: unsigned-device-ipa-needs-resigning
-          path: dist/LocalVisionSolver-unsigned.ipa
+          python-version: '3.14'
+      - run: python -m pip install -c requirements.lock.txt -e ".[test]"
+      - run: python -m pip install "playwright==1.63.0" "pyinstaller==6.22.3"
+      - run: python -m playwright install chromium
+      - run: powershell -NoProfile -File scripts/install_build_tools.ps1
+      - run: python scripts/package_windows.py --check-installer
+      - run: python scripts/package_source.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vision-windows-installer
+          path: |
+            dist/Vision.exe
+            dist/Vision.exe.sha256
+            dist/release-manifest.json
+            dist/acceptance-report.json
           if-no-files-found: error
           retention-days: 14
-      - name: Save Apple build log
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: apple-build-logs
-          path: .cache/apple-validation/*.log
+          name: installer-evidence
+          path: |
+            .cache/windows-build/**/build.log
+            .cache/windows-build/**/installer.log
+            .cache/installer-checks/**/*.log
+            .cache/installer-checks/**/report.json
+            .cache/desktop-checks/**/*.png
+            .cache/desktop-checks/**/*.log
+            .cache/desktop-checks/**/report.json
+            .cache/browser-checks/**/report.json
+            .cache/acceptance-http/**/report.json
           retention-days: 7

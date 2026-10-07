@@ -22,7 +22,7 @@ class Reading(StrictModel):
     subject: Literal["mathematics", "physics", "computer_science", "english",
                      "kazakh", "geography", "mixed"]
     task_type: str = Field(min_length=1)
-    requires_math_rendering: bool
+    requires_math_rendering: bool  # Classification hint; actual math blocks are always validated.
     page_order: list[int] = Field(min_length=1)
     problem_text: str = Field(min_length=1)
     questions: list[Question] = Field(min_length=1)
@@ -50,6 +50,8 @@ class Draft(StrictModel):
     final_answer: list[Block]
     solution: list[Block] = Field(min_length=1)
     numeric_checks: list[NumericCheck]
+    numeric_checks_applicability: Literal['applicable','not_applicable'] | None = None
+    numeric_checks_reason: str = ''
     warnings: list[str]
     confidence: float = Field(ge=0, le=1)
 
@@ -64,3 +66,9 @@ class Audit(StrictModel):
     issues: list[str]
     correction_instructions: str
 
+
+class VerifiedAnswer(StrictModel):
+    session_id: str
+    draft: Draft
+    metadata: dict
+    demo: bool = False

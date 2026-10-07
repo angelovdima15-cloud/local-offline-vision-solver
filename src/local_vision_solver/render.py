@@ -1,10 +1,6 @@
 from io import BytesIO
 from pathlib import Path
 import os
-import re
-import shutil
-import subprocess
-import tempfile
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -58,44 +54,18 @@ class CardRenderer:
             image = Image.open(data).convert("RGBA")
         except (ValueError, RuntimeError) as exc:
             raise RenderingError(
-                f"Unsupported LaTeX in offline mathtext: {formula!r}. Use math_engine='tex' "
-                "with a fully installed local TeX distribution, or revise to supported notation.") from exc
+                f"Unsupported formula in offline mathtext: {formula!r}. Revise to supported notation.") from exc
         bbox = image.getchannel("A").getbbox()
         return image.crop(bbox) if bbox else image
 
-    def _tex(self, formula: str, size: int) -> Image.Image:
-        if not shutil.which("latex") or not shutil.which("dvipng"):
-            raise RenderingError("math_engine='tex' requires local latex AND dvipng, installed before offline use")
-        # Formulas are data; disallow TeX filesystem/program primitives and arbitrary macros.
-        if re.search(r"\\(?:input|include|openin|openout|read|write|immediate|special|catcode|csname|def|newcommand|usepackage|documentclass)\b", formula):
-            raise RenderingError("Unsafe TeX command in formula")
-        document = ("\\documentclass{article}\n\\usepackage{amsmath,amssymb}\n"
-                    "\\pagestyle{empty}\n\\begin{document}\n"
-                    f"\\fontsize{{{size / 2}}}{{{size * .65}}}\\selectfont\n"
-                    "$\\displaystyle " + formula + "$\n\\end{document}\n")
-        with tempfile.TemporaryDirectory(dir=self.working_directory) as temp:
-            directory = Path(temp)
-            (directory / "formula.tex").write_text(document, encoding="utf-8")
-            try:
-                subprocess.run(["latex", "-no-shell-escape", "-halt-on-error",
-                                "-interaction=nonstopmode", "formula.tex"], cwd=directory,
-                               capture_output=True, check=True, timeout=30)
-                subprocess.run(["dvipng", "-D", "144", "-T", "tight", "-bg", "Transparent",
-                                "-fg", "rgb 1 1 1", "-o", "formula.png", "formula.dvi"],
-                               cwd=directory, capture_output=True, check=True, timeout=30)
-                with Image.open(directory / "formula.png") as image:
-                    return image.convert("RGBA")
-            except (subprocess.SubprocessError, OSError) as exc:
-                raise RenderingError("Local LaTeX rendering failed; no plain-text math fallback delivered") from exc
-
     def math_image(self, formula: str) -> Image.Image:
-        engine = self._tex if self.config.math_engine == "tex" else self._mathtext
+        engine = self._mathtext
         available_height = self.bottom - self.config.margin
         for size in range(self.config.font_size, self.config.minimum_math_font_size - 1, -2):
             image = engine(formula, size)
             if image.width <= self.content_width and image.height <= available_height:
                 return image
-        raise RenderingError("Equation is too large for a readable watch card. Split it into logical steps; "
+        raise RenderingError("Equation is too large for a readable phone card. Split it into logical steps; "
                              "the full text/structured answer is preserved in this session.")
 
     def wrap(self, paragraph: str, font: ImageFont.FreeTypeFont) -> list[str]:
@@ -136,7 +106,7 @@ class CardRenderer:
         if draft.final_answer:
             sections.append((labels[language][0], draft.final_answer))
         sections.append((labels[language][1] if draft.final_answer else "", draft.solution))
-        pages: list[tuple[Image.Image, str]] = []
+        pages: list[tuple[Path, str]] = []
         for title, blocks in sections:
             canvas = Image.new("RGB", (self.config.width, self.config.height), "black")
             draw = ImageDraw.Draw(canvas)
@@ -146,7 +116,9 @@ class CardRenderer:
             def flush():
                 nonlocal canvas, draw, y, content_present
                 if content_present:
-                    pages.append((canvas, title))
+                    path = destination / f"answer_{len(pages) + 1:02d}.png"
+                    canvas.save(path)
+                    pages.append((path, title))
                 canvas = Image.new("RGB", (self.config.width, self.config.height), "black")
                 draw = ImageDraw.Draw(canvas)
                 y = self.config.margin
@@ -179,7 +151,8 @@ class CardRenderer:
                     y += 18
             flush()
         manifest = []
-        for index, (canvas, title) in enumerate(pages, 1):
+        for index, (path, title) in enumerate(pages, 1):
+            canvas = Image.open(path).convert("RGB")
             draw = ImageDraw.Draw(canvas)
             footer = f"{index}/{len(pages)}"
             draw.text((self.config.margin, self.config.height - self.config.margin - 30),

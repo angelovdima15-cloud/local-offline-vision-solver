@@ -1,33 +1,28 @@
-# Проверка прототипа и MVP
+# Проверки 0.4
 
-Дата: 2026-10-06. Windows, Python 3.14.5, RTX 3050 Laptop 4 ГБ. Целевая RTX 4060 8 ГБ находится на другом ноутбуке; по указанию пользователя запуск Qwen там будет позже.
+Актуальные evidence находятся в `.cache/dev-checks`, `.cache/browser-checks`, `.cache/desktop-checks`, `.cache/windows-build`, `.cache/installer-checks`; итоговый статус — `dist/acceptance-report.json`. Аппаратная приёмка не подменяется demo.
 
-Последний прогон: **45 passed**. Одна deprecation warning от Starlette TestClient/httpx; функциональные проверки проходят. Это не ошибка runtime и не доказательство готовности Apple-сборки.
+Проверки реализации 0.4 от 7 октября 2026:
 
-## Выполнено
+- **80 passed**, exit 0, 23.39 s. Отказы SQLite/записи, восстановление очереди, leases, slow upload, авторизация и owner, пределы изображений, verified answer/render retry, ZIP, assets, процессы Windows, power journal и desktop. Лог: `.cache/dev-checks/20261007-203743-49dbef.log`.
+- Source browser: **PASS**, без внешних запросов и JavaScript errors. Включены New Task во время сохранения, 404, конечные повторы result 500, изменение частично отправленных фото, освобождение URL, TXT при render failure и повторное сопряжение. Отчёт: `.cache/browser-checks/20261007-203959-75e972/report.json`.
+- Frozen backend HTTP: **PASS**, загрузка оригиналов, двухстраничная demo-задача и проверка SHA256 результата. Отчёт: `.cache/acceptance-http/20261007-204335-3f42f4/report.json`.
+- Frozen browser: **PASS** с теми же сценариями восстановления. Отчёт: `.cache/browser-checks/20261007-204341-f2a34f/report.json`.
+- Frozen GUI setup/demo: **PASS**, exit 0. Логи: `.cache/desktop-checks/20261007-204359-2ccea8/check.log`, `.cache/desktop-checks/20261007-204403-688e87/check.log`.
+- Все пять QML-экранов проверены при масштабах **100%, 125%, 150%, 200%**, включая минимальный размер окна. Evidence: `.cache/desktop-view-checks/20261007-202948-0b9385`, `20261007-203002-6895db`, `20261007-203007-fbdd32`, `20261007-203013-c3d866`.
 
-- Установка Python-зависимостей в `.venv` проекта.
-- Автоматические тесты solver и MVP: полный pipeline с детерминированным локальным HTTP transport, все страницы в каждом этапе, изоляция двух сессий, независимый solver без первого ответа, numeric failures, corrections/re-audit, missing subquestions, recovery crops, retake после повторной попытки, truncated output, обязательная очистка KV context.
-- LAN API/serial queue: idempotent session/upload/submit, input limits, atomic package, failure states, restart recovery и checksum corruption.
-- Настоящий HTTP transport demo с двумя JPEG-страницами, progress, download/result checksum, PNG и удалением сессии; отчёт `.cache/transport-smoke/report.json`.
-- Native iOS/watchOS sources, общий пакет, Xcode targets, schemes/plists и structural tests. Swift unit tests для Python-generated binary fixture подготовлены для запуска на Mac.
-- Запрет remote/proxy inference endpoints, ограниченный арифметический AST-интерпретатор, невозможность исполнения произвольного model-generated Python.
-- Прозрачность математических растров, отсутствие потери символов при пагинации Kazakh, отклонение слишком широких и неподдерживаемых формул.
-- Отдельный реальный рендеринг математического и казахского примеров; визуальная проверка карточек.
-- Компиляция Python-модулей и синтаксическая проверка трёх PowerShell-скриптов.
-- `doctor`: правильно сообщил отсутствующие model/runtime/projector и неготовность локального inference.
+Inference в этих проверках simulated/demo. Реальные Qwen-задачи на RTX 4060 Laptop 8 GB, iPhone/Safari, чистая Windows без Python, многогигабайтная первоначальная загрузка, offline solve, driver/reboot и 30 минут работы с закрытой крышкой остаются отдельной приёмкой.
 
-В тестах **нет настоящего Qwen inference**: transport возвращает фиксированные structured answers. Такие тесты проверяют управление пайплайном, а не академическую точность.
+## Исторические проверки 0.3
 
-## Ещё не проверено
+# Проверки · 7 октября 2026
 
-- Первичная загрузка больших runtime/model assets на целевую машину и запуск pinned llama.cpp binary.
-- Совместимость фактической сборки с моделью, JSON grammar и выбранным CUDA memory profile.
-- Полные реальные фотографии по восьми категориям, карты, diagrams и complex LaTeX.
-- Верность транскрипции, академических ответов, language detection и meaning-level audit.
-- Сравнение Q4/Q5/Q6/Q8, projectors/KV и CPU offload на RTX 4060.
-- Цели 10–30/60 секунд, пик VRAM и стабильность при многостраничном задании.
-- Full TeX path: локальные `latex`/`dvipng` отсутствуют в текущем окружении.
-- Apple-компиляция `swift test`/`xcodebuild`, native iOS/Watch на устройствах, Bonjour в фактической сети, WatchConnectivity и полный offline end-to-end scenario.
+- 46 Python tests: pipeline/context isolation/verification/retry, арифметика, renderer, LAN queue/upload/restart/limits, ZIP integrity, local site, Origin policy, QR decode, HEIC original preservation/preview и downloads.
+- Pytest: **46 passed, 1 warning**, 9.78 s; exit 0. Полный лог `.cache/dev-checks/20261007-175849-09eb08.log`.
+- Browser Chromium на Windows, desktop 1360×960 и phone viewport 430×932: preview двух фото, reorder, потерянный ACK после принятого upload, idempotent retry, результат, ZIP, reload restore, новая независимая задача. **PASS**, без JS errors/внешних HTTP-запросов. Report/screenshots: `.cache/browser-checks/20261007-175809-391af0/`.
+- QR декодирован через OpenCV; HEIC bytes/SHA256 сохранены без изменения, preview JPEG создан локально и не заменяет исходник.
+- Переносимый Windows EXE собран локально PyInstaller 6.22.3. Через этот EXE повторён browser-flow, включая HEIC preview/raw bytes, reorder, lost upload ACK, ZIP download, восстановление после потери polling/reload, новый UUID. **PASS**: `.cache/browser-checks/20261007-180736-f40b00/report.json`; полный вывод `.cache/frozen-browser-check.log`.
+- ZIP готовой программы: `dist/LocalVisionSolver-Web-Windows-x64.zip`, 112851164 bytes. SHA256 `685439344b8204483142bc4103322da939e7542353f200e5f876ae138d3d5b0b`. Model assets не включены: первоначальный installer скачает их на целевом ноутбуке.
+- Native код/пакеты/CI Apple удалены после сохранения UX-идеи; очищено около 528.5 MiB старых исходников, артефактов и развёрнутых пакетов.
 
-Код MVP и проверки Windows транспорта готовы. Phase 1 по академическому качеству и конечный MVP на устройствах принимаются только после указанных реальных прогонов. Подробности: [MVP acceptance](mvp-acceptance.md).
+Demo flow не решает задания, pytest inference adapters детерминированы. Фактическое качество Qwen, VRAM/latency RTX 4060, камера Safari, downloads iOS и маршрут через настоящий iPhone hotspot остаются аппаратной приёмкой. Проверка phone viewport не является тестом настоящего iPhone или WebKit/Safari.

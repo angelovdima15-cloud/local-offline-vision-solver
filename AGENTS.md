@@ -10,12 +10,12 @@
 - Exclude `.venv`, `.cache`, `sessions`, `models`, `runtime`, generated files, and bytecode from routine searches.
 - Use `.venv\Scripts\python.exe scripts/dev.py outline <file.py>` for Python symbol locations.
 - Use `.venv\Scripts\python.exe scripts/dev.py read <file> <start> <end>` for numbered excerpts.
-- Backend: `src/local_vision_solver`; iPhone: `apple/iOS`; Watch: `apple/Watch`; wire format: `package.py` + `apple/Shared/ResultPackage.swift`.
+- Backend: `src/local_vision_solver`; mobile website: `src/local_vision_solver/web`; ZIP downloads: `package.py`.
 - Run the smallest meaningful check: `.venv\Scripts\python.exe scripts/dev.py check tests/test_api.py` (a pytest node ID also works).
 - Test mapping and device requirements are in the `vision-checks` skill; load it for verification tasks.
 - Use `vision-runtime` for model deployment/benchmark tasks, not ordinary source edits.
 - Keep full command logs on disk; return the exit code, useful summary, and log path. Inspect full logs when needed.
 - Widen testing for a changed shared contract, concurrency, context isolation, or unresolved failure. Stop when the concrete risk is covered.
 - API/renderer tests with simulated inference do not establish Qwen accuracy or GPU performance.
-- Apple compilation requires macOS/Xcode; structural checks on Windows do not establish a successful build.
+- Native Apple code was removed; the original UX concept is saved in `docs/native-app-concept.md`. Browser tests do not establish real iPhone hotspot connectivity or Qwen accuracy.
 - Use `codex.cmd`/`npm.cmd` in PowerShell; do not change system execution policy.

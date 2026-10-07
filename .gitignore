@@ -8,9 +8,5 @@ runtime/
 sessions/
 benchmarks/private/
 config.local.toml
-apple/.build/
-apple/.swiftpm/
-apple/**/xcuserdata/
-apple/Signing.local.xcconfig
 benchmarks/manifest.local.json
 dist/

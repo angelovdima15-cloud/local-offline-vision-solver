@@ -9,10 +9,10 @@ from pathlib import Path
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-TREES = ("src", "scripts", "tests", "apple", "docs", "examples", "benchmarks", "tools/codex", ".github")
+TREES = ("src", "scripts", "tests", "docs", "examples", "benchmarks", "installer", "tools/codex", ".agents/skills", ".github")
 FILES = ("README.md", "DELIVERY.md", "AGENTS.md", "config.toml", "pyproject.toml", "requirements.lock.txt",
          ".gitignore", ".ignore", "setup.cmd", "start-backend.cmd", "start-demo.cmd")
-EXCLUDED_DIRS = {"__pycache__", ".build", ".swiftpm", "xcuserdata", "private"}
+EXCLUDED_DIRS = {"__pycache__", ".render-cache", "rendered_kazakh", "rendered_math", "rendered_math_checked", "private"}
 EXCLUDED_FILES = {"Signing.local.xcconfig", "config.local.toml", "manifest.local.json"}
 
 
@@ -33,15 +33,15 @@ def selected_files() -> list[Path]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=ROOT / "dist" / "LocalVisionSolver-MVP-source.zip")
+    parser.add_argument("--output", type=Path, default=ROOT / "dist" / "LocalVisionSolver-Web-source.zip")
     args = parser.parse_args()
     output = args.output.resolve()
     files = selected_files()
     for file in files:
         if not file.is_file():
             raise ValueError(f"Required source file missing: {file}")
-    manifest = {"created_at": datetime.now(timezone.utc).isoformat(), "kind": "MVP source handoff",
-                "production_accepted": False, "signed_apple_apps_included": False,
+    manifest = {"created_at": datetime.now(timezone.utc).isoformat(), "kind": "Local web solver source handoff",
+                "production_accepted": False,
                 "model_assets_included": False,
                 "files": {file.relative_to(ROOT).as_posix(): hashlib.sha256(file.read_bytes()).hexdigest() for file in files}}
     output.parent.mkdir(parents=True, exist_ok=True)

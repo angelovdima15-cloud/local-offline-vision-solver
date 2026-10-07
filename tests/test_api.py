@@ -5,12 +5,12 @@ import threading
 import time
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
+from api_support import TestClient
 from PIL import Image
 import pytest
 
 from local_vision_solver.config import load_config
-from local_vision_solver.server import create_app
+from api_support import create_app
 from local_vision_solver.package import inspect_package
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -64,7 +64,8 @@ def test_demo_upload_result_and_atomic_package(config, tmp_path):
         assert result["demo"] is True and "No AI solution" in result["plain_text_answer"]
         package = client.get(f"/v1/sessions/{identifier}/package")
         assert package.status_code == 200
-        file = tmp_path / "received.lvsp"
+        assert package.headers["content-type"] == "application/zip"
+        file = tmp_path / "received.zip"
         file.write_bytes(package.content)
         header = inspect_package(file)
         assert header["session_id"] == identifier and header["demo"] is True
@@ -156,10 +157,8 @@ def test_completed_session_survives_backend_restart(config):
 def test_interrupted_job_is_not_reported_as_complete(config):
     with TestClient(create_app(config, demo=True)) as client:
         identifier = create(client)
-    path = config.pipeline.session_directory / identifier / "job.json"
-    data = json.loads(path.read_text(encoding="utf-8"))
-    data["state"] = "RUNNING"
-    path.write_text(json.dumps(data), encoding="utf-8")
+    from local_vision_solver.job_repository import JobRepository
+    JobRepository(config.paths.database).update(identifier,state="RUNNING")
     with TestClient(create_app(config, demo=True)) as client:
         status = client.get(f"/v1/sessions/{identifier}").json()
         assert status["state"] == "ERROR" and status["error"]["code"] == "interrupted"
@@ -172,9 +171,16 @@ def test_package_corruption_is_detected(config, tmp_path):
         submit(client, identifier)
         wait(client, identifier)
         data = bytearray(client.get(f"/v1/sessions/{identifier}/package").content)
-    data[-1] ^= 0xFF
-    file = tmp_path / "corrupt.lvsp"
-    file.write_bytes(data)
+    import zipfile
+    source = zipfile.ZipFile(BytesIO(data))
+    output = BytesIO()
+    with source, zipfile.ZipFile(output, "w") as archive:
+        for name in source.namelist():
+            payload = source.read(name)
+            if name.endswith(".png"):
+                payload = payload[:-1] + bytes([payload[-1] ^ 0xFF])
+            archive.writestr(name, payload)
+    file = tmp_path / "corrupt.zip"
+    file.write_bytes(output.getvalue())
     with pytest.raises(ValueError, match="integrity"):
         inspect_package(file)
-

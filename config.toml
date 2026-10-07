@@ -32,7 +32,7 @@ max_corrections = 1
 latency_target_seconds = 60
 
 [render]
-# 46 mm Watch canvas, at 2x raster resolution. Configurable for the actual watch.
+# Portrait answer cards, readable in the phone browser and downloadable as PNG.
 width = 832
 height = 992
 font_size = 48
@@ -40,7 +40,7 @@ minimum_math_font_size = 34
 margin = 28
 font_path = "C:/Windows/Fonts/segoeui.ttf"
 code_font_path = "C:/Windows/Fonts/consola.ttf"
-# mathtext: offline LaTeX mathematical subset. tex: installed latex + dvipng.
+# Offline mathtext only; no model-generated TeX is executed.
 math_engine = "mathtext"
 
 [server]
@@ -51,5 +51,5 @@ service_name = "Local Vision Solver"
 # Set advertise_address to the laptop LAN IPv4 only if automatic discovery chooses poorly.
 max_queued_jobs = 8
 max_page_megabytes = 60
-retain_sessions = true
+retain_sessions = false
 retention_hours = 24

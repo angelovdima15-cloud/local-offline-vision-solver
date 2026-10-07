@@ -10,7 +10,4 @@ models/
 runtime/
 sessions/
 benchmarks/private/
-apple/.build/
-apple/.swiftpm/
-apple/**/xcuserdata/
 dist/

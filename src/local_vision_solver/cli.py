@@ -1,4 +1,5 @@
 import argparse
+from contextlib import ExitStack
 import json
 from pathlib import Path
 import sys
@@ -15,6 +16,9 @@ from .storage import write_json
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Local Offline Vision Solver: CLI and LAN MVP")
     parser.add_argument("--config", type=Path, default=Path("config.toml"))
+    parser.add_argument("--data-dir",type=Path)
+    parser.add_argument("--api-port",type=int)
+    parser.add_argument("--inference-port",type=int)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("doctor", help="Inspect GPU, files, fonts and local inference health")
     sub.add_parser("start-model", help="Run local llama.cpp in the foreground")
@@ -22,6 +26,8 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--demo", action="store_true", help="Clearly marked transport demo; does not solve images")
     serve.add_argument("--external-model", action="store_true", help="Use an already running loopback model")
     serve.add_argument("--no-discovery", action="store_true", help="Disable Bonjour for local tests")
+    serve.add_argument("--open-browser", action="store_true", help="Open the local website on this laptop")
+    serve.add_argument("--admin-stdin",action="store_true",help="Read private desktop credential from stdin")
     solve = sub.add_parser("solve", help="Solve one fresh session; images are in upload order")
     solve.add_argument("images", type=Path, nargs="+")
     render = sub.add_parser("render", help="Render an existing validated answer without a model")
@@ -34,7 +40,14 @@ def main(argv: list[str] | None = None) -> int:
     benchmark.add_argument("--repeats", type=int, default=1)
     args = parser.parse_args(argv)
     try:
-        config = load_config(args.config)
+        config = load_config(args.config,args.data_dir)
+        if args.api_port is not None:
+            config.server.port=args.api_port
+        if args.inference_port is not None:
+            config.inference.endpoint=f'http://127.0.0.1:{args.inference_port}'
+        config = type(config).model_validate(config.model_dump())
+        from .logging_setup import configure_logging
+        configure_logging(config.paths.logs,'backend')
         if args.command == "doctor":
             report = inspect_environment(config)
             print(json.dumps(report, ensure_ascii=False, indent=2))
@@ -45,16 +58,31 @@ def main(argv: list[str] | None = None) -> int:
             import uvicorn
             from .runtime import launch_server, stop_server
             from .server import create_app
-            process = None
-            try:
-                if not args.demo and not args.external_model:
-                    process = launch_server(config)
-                app = create_app(config, demo=args.demo,
-                                 advertise=False if args.no_discovery else None)
-                uvicorn.run(app, host=config.server.host, port=config.server.port, log_level="info")
-            finally:
-                if process:
-                    stop_server(process)
+            from .process_supervisor import ProcessSupervisor,ModelMonitor
+            secret=None
+            if args.admin_stdin:
+                secret=json.loads(sys.stdin.readline())['secret']
+                if not isinstance(secret,str) or len(secret)<32:
+                    raise ValueError('Invalid private admin credential')
+            with ExitStack() as stack:
+                from .locking import file_lock
+                stack.enter_context(file_lock(config.paths.data/".backend.lock"))
+                from .runtime_lock import runtime_process_lock
+                if not args.demo and not args.external_model:stack.enter_context(runtime_process_lock(config.inference.endpoint))
+                supervisor=ProcessSupervisor()
+                process = None
+                try:
+                    if not args.demo and not args.external_model:
+                        process = launch_server(config,supervisor=supervisor)
+                        supervisor.wait_ready(process,config.inference.endpoint)
+                    app = create_app(config, demo=args.demo,
+                                     advertise=False if args.no_discovery else None, open_browser=args.open_browser,admin_secret=secret)
+                    if process:
+                        monitor=ModelMonitor(config,supervisor,process,app.state.jobs)
+                        monitor.thread.start()
+                    uvicorn.run(app, host=config.server.host, port=config.server.port, log_level="info",access_log=False)
+                finally:
+                    supervisor.close()
             return 0
         if args.command == "solve":
             session, result = Pipeline(config).solve(args.images)

@@ -10,7 +10,7 @@ try {
     & .\.venv\Scripts\python.exe -m pip install --cache-dir .cache\pip -c requirements.lock.txt -e '.[test]'
     if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
     if ($DownloadAssets) {
-        & .\.venv\Scripts\python.exe scripts\install_assets.py
+        & .\.venv\Scripts\python.exe scripts\install_assets.py --data-dir (Split-Path -Parent $PSScriptRoot)
         if ($LASTEXITCODE -ne 0) { throw 'Model/runtime installation failed.' }
     }
     Write-Output 'Setup finished. Run scripts\start-backend.ps1 for the LAN MVP, or scripts\start-model.ps1 for CLI inference.'

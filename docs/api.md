@@ -1,45 +1,32 @@
-# LAN API v1
+# Локальный API 0.4
 
-Windows слушает `0.0.0.0:8765`; модель остаётся на loopback `127.0.0.1:8081`. `scripts/start-backend.ps1` запускает оба компонента. `-ExternalModel` использует уже работающий локальный llama-server, `-Demo` проверяет транспорт без inference.
-
-Bonjour service `_visionsolver._tcp.local.` с TXT `api_version=1`, `path=/health`. Service label из исходного примера слишком длинный; применено имя в пределах DNS-SD 15 символов. [RFC 6335](https://www.rfc-editor.org/rfc/rfc6335.html).
+API выбирает порт 8765–8775; inference — 8081–8091 только на loopback. Desktop передаёт admin credential через stdin. Admin requests требуют Bearer credential и loopback source. Телефоны получают только HttpOnly, SameSite=Strict cookie; credentials хранятся в SQLite как digest. Host ограничен фактическими LAN IPv4, 127.0.0.1, localhost и ::1 с фактическим API port. Browser mutations проверяют Origin; произвольный совпадающий Host/Origin не разрешён.
 
 | Endpoint | Назначение |
-|---|---|
-| `GET /health` | service/version/model ready/loading/unavailable/demo, лимиты |
-| `POST /v1/sessions` | `{session_id: UUID}`; создание либо возврат той же сессии |
-| `PUT /v1/sessions/{id}/pages/{n}` | Raw JPEG/PNG bytes, без multipart/resize; idempotent SHA256 replay |
-| `POST /v1/sessions/{id}/solve` | `{page_count: N, page_order: [1,…,N]}`; HTTP 202, ровно одно вычисление |
-| `GET /v1/sessions/{id}` | stage/progress, result_available, error, demo |
-| `GET /v1/sessions/{id}/result` | Полный structured JSON |
-| `GET /v1/sessions/{id}/package` | Один `.lvsp` файл для iPhone/Watch |
-| `GET /v1/sessions/{id}/cards/{index}` | Отдельный PNG, нумерация с 1 |
-| `DELETE /v1/sessions/{id}` | Удаление незапущенной либо завершённой сессии; не во время upload/processing |
+| --- | --- |
+| `GET /health`, `GET /ready` | Health worker/storage/model; readiness 503 при отказе |
+| `POST /v1/admin/pairing` | Одноразовый QR token, TTL 120 s |
+| `POST /v1/pairing/exchange` | JSON `{token,name?}`, HttpOnly cookie на 30 дней |
+| `GET /v1/admin/clients` | Сопряжённые устройства без credentials |
+| `DELETE /v1/admin/clients/{id}` | Отозвать доступ телефона |
+| `GET /v1/admin/sessions` | Desktop: список всех задач |
+| `POST /preview` | Временный JPEG ≤1600×1600; исходник не изменяется |
+| `POST /v1/sessions` | Создать UUID; необязательное `session_id`, 201 |
+| `PUT /v1/sessions/{id}/pages/{number}` | Исходные bytes; одинаковый replay идемпотентен |
+| `GET /v1/sessions/{id}/pages/{number}/preview` | Авторизованный preview сохранённой страницы |
+| `POST /v1/sessions/{id}/solve` | `{page_count,page_order}`, 202 после durable commit |
+| `GET /v1/sessions/{id}` | Основное state, stage, доступность ответа/файлов |
+| `POST /v1/sessions/{id}/render` | Только сохранённый verified answer; модель не вызывается |
+| `GET /v1/sessions/{id}/result` | Полный structured result после COMPLETE |
+| `GET /v1/sessions/{id}/answer.txt` | Проверенный TXT начиная с ANSWER_READY |
+| `GET /v1/sessions/{id}/cards/{index}?download=true` | PNG после COMPLETE |
+| `GET /v1/sessions/{id}/package` | Проверенный ZIP после COMPLETE |
+| `DELETE /v1/sessions/{id}` | Не выполняется во время upload/processing/download |
 
-Session id всегда UUID, page number 1..max_pages, текущий лимит 12 страниц, 60 MiB на страницу и 300 MiB на задачу. Все страницы должны присутствовать до Solve. Повтор PUT с другим содержимым после присвоения номера запрещён; для изменения требуется новая сессия.
+Session принадлежит client ID; чужой телефон получает 404. UUID не является credential. Фото, preview, задачи и результаты требуют сопряжения либо desktop-admin. Авторизация выполняется до чтения upload body. Pairing exchange: 5/min/IP; create: 10/min/client; preview: 10/min/client. 429 включает Retry-After.
 
-CPU/GPU worker последовательно обрабатывает jobs. Очередь ограничена; 429 позволяет повторить submit позже. При потере HTTP-ответа повторяется тот же session id/PUT/Solve. На перезапуске незапущенная очередь восстанавливается, прерванная обработка становится `ERROR/interrupted`, а завершённый результат остаётся доступен. Failed task повторяется с новым UUID.
+Основные состояния: RECEIVING → QUEUED → RUNNING → ANSWER_READY → RENDERING → PACKAGING → COMPLETE. UNDERSTANDING, SOLVING, VERIFYING_* и CORRECTING — stage. Ошибка inference даёт ERROR; ошибка renderer/package возвращает ANSWER_READY с `output_error`. Status содержит `answer_available`, `cards_available`, `result_available`. 409 `page_content_conflict` означает иной набор bytes для занятого номера; создайте новый UUID. Новая страница после submit: 409 `session_already_submitted`.
 
-Состояния: RECEIVING, QUEUED, VALIDATING_IMAGES, UNDERSTANDING, SOLVING, VERIFYING, CORRECTING, RENDERING, SENDING, COMPLETE, ERROR. Подробные технические подэтапы могут включать UNDERSTANDING_RETRY и VERIFYING_INDEPENDENT/AUDIT. `COMPLETE` в API появляется только после формирования пакета, даже если сам pipeline уже закончил inference/render.
+SQLite WAL + synchronous FULL + foreign keys + busy_timeout 5000; queue является частью БД. RECEIVING idle timeout 3600 s, cleanup 60 s, retention завершённых 24 h, active sessions 32, queue 8. Upload: 60 MiB/page, 300 MiB/session, 12 страниц, 64 млн pixels, minimum side 160, idle 30 s, total 180 s. Один decode/preprocessing, два preview, четыре uploads; слот preview ожидается 2 s; preview timeout 60 s. Prepared views ограничены 512 MiB; резерв диска 2 GiB.
 
-Ошибки HTTP: 404 неизвестная сессия/card, 409 конфликт состояния, 413 upload limit, 422 неверные данные/страницы, 425 результат ещё не готов, 429 очередь занята. Ошибка processing сохраняется в status с code/message; непроверенные результаты через result/package не выдаются.
-
-`retain_sessions=true` сохраняет сессии до явного удаления. При false завершённые/ошибочные/незавершённые upload-сессии старше retention_hours удаляются при старте и после job. Очередь и активный inference не удаляются автоматической очисткой.
-
-## Формат Watch package
-
-1. 8 ASCII bytes `LVSPKG01`.
-2. 4-byte unsigned big-endian длина UTF-8 JSON header.
-3. Header: schema_version, session_id, created_at (Unix seconds), detected_language, plain_text_answer, demo, cards.
-4. PNG bytes каждой карточки подряд в порядке cards; entry содержит index/file/byte_count/sha256/width/height.
-
-Максимум header 8 MiB, package 300 MiB. Проверяется вся последовательность, длина каждого файла, SHA256 и отсутствие trailing bytes. iPhone/Watch дополнительно проверяют PNG dimensions. Коммит происходит после полной проверки, поэтому частично доставленная пачка не показывается.
-
-`created_at` — время создания session на ноутбуке. Поздно доставленная старая сессия не заменяет новую на Watch. Следовательно, системные часы ноутбука не следует резко переводить назад между задачами; устойчивое глобальное упорядочивание при смене ноутбуков относится к следующему этапу.
-
-## Сеть Windows
-
-Одна local Wi-Fi сеть без client/AP isolation. Разрешите Python-процессу TCP 8765 и multicast UDP 5353 в Windows Firewall для Private network. Эти права/правила не изменяются установщиком молча. Если обнаружение выбирает VPN/virtual adapter, задайте `server.advertise_address` равным LAN IPv4 ноутбука.
-
-Проверка с другого устройства: `http://<laptop-LAN-IP>:8765/health`. Сначала transport demo, затем реальный Qwen. Swagger/ReDoc отключены, чтобы не подтягивать CDN assets. Приложение не требует авторизации, облачных сервисов или Интернета.
-
+Manifest ZIP schema 2: UUID, UTC epoch timestamp, language, text, demo и ordered PNG index/file/bytes/dimensions/SHA256. Inspector проверяет уникальность имён, последовательность индексов, типы, PNG dimensions/CRC/SHA256, соответствие text и structured result. Manifest ≤8 MiB; ZIP и распакованный пакет ≤300 MiB. Файлы защищены lease во время отправки. Legacy job.json импортируется без удаления исходных метаданных; повреждения регистрируются в recovery, RUNNING после аварии становится ERROR/interrupted.

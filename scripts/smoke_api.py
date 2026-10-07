@@ -4,6 +4,7 @@ from io import BytesIO
 import json
 from pathlib import Path
 import time
+import sys
 from uuid import uuid4
 
 import httpx
@@ -16,9 +17,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="http://127.0.0.1:8765")
     parser.add_argument("--output", type=Path, default=Path(".cache/transport-smoke"))
+    parser.add_argument("--admin-stdin",action="store_true")
     args = parser.parse_args()
+    headers={}
+    if args.admin_stdin:headers={"Authorization":"Bearer "+json.loads(sys.stdin.read())["secret"]}
     args.output.mkdir(parents=True, exist_ok=True)
-    with httpx.Client(base_url=args.url, trust_env=False, follow_redirects=False, timeout=15) as client:
+    with httpx.Client(headers=headers,base_url=args.url, trust_env=False, follow_redirects=False, timeout=15) as client:
         health = client.get("/health")
         health.raise_for_status()
         if not health.json().get("demo"):
@@ -45,7 +49,7 @@ def main():
         else: raise RuntimeError("Demo processing timeout")
         package = client.get(f"/v1/sessions/{identifier}/package")
         package.raise_for_status()
-        file = args.output / "result.lvsp"
+        file = args.output / "result.zip"
         file.write_bytes(package.content)
         header = inspect_package(file)
         assert header["session_id"] == identifier and header["demo"]
@@ -61,4 +65,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

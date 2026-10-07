@@ -80,7 +80,7 @@ def test_wide_formula_is_rejected_instead_of_becoming_tiny(tmp_path):
 
 def test_unsupported_latex_does_not_silently_disappear(tmp_path):
     renderer = CardRenderer(load_config(ROOT / "config.toml").render, tmp_path)
-    with pytest.raises(RenderingError, match="Unsupported LaTeX"):
+    with pytest.raises(RenderingError, match="Unsupported formula"):
         renderer.math_image(r"\begin{align}x&=12\end{align}")
 
 

@@ -4,10 +4,10 @@ import os
 
 
 @contextmanager
-def inference_lock(directory: Path):
-    """OS releases the lock after a crash. Serializes CLI sessions sharing this workspace."""
-    directory.mkdir(parents=True, exist_ok=True)
-    with (directory / ".inference.lock").open("a+b") as handle:
+def file_lock(path: Path):
+    """OS releases the lock after a crash."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+b") as handle:
         handle.seek(0, os.SEEK_END)
         if handle.tell() == 0:
             handle.write(b"0")
@@ -31,3 +31,10 @@ def inference_lock(directory: Path):
             else:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
+
+def inference_lock(endpoint):
+    # Path compatibility is limited to source tests; product callers use the endpoint.
+    if isinstance(endpoint, Path):
+        return file_lock(endpoint / ".inference.lock")
+    from .runtime_lock import runtime_lock
+    return runtime_lock(endpoint)

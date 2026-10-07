@@ -5,8 +5,11 @@ import shutil
 import cv2
 import numpy as np
 from PIL import Image, ImageOps
+from pillow_heif import register_heif_opener
 
 from .models import Uncertainty
+
+register_heif_opener(thumbnails=False)
 
 
 class ImageInputError(RuntimeError):
@@ -31,8 +34,8 @@ class Page:
 
 
 def prepare_page(source: Path, number: int, directory: Path) -> Page:
-    if source.suffix.lower() not in {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}:
-        raise ImageInputError("Use JPEG/PNG/TIFF/WebP. Export HEIF as JPEG without resizing.")
+    if source.suffix.lower() not in {".jpg", ".jpeg", ".png", ".heic", ".heif", ".tif", ".tiff", ".webp"}:
+        raise ImageInputError("Use JPEG/PNG/HEIC/HEIF/TIFF/WebP.")
     original = directory / "originals" / f"page_{number:02d}{source.suffix.lower()}"
     shutil.copyfile(source, original)
     try:
@@ -107,4 +110,3 @@ def retry_views(pages: list[Page], uncertainties: list[Uncertainty], directory: 
                     image.crop((0, int(top*page.height), page.width, int(bottom*page.height))).save(crop)
                     views.append((f"{label} detail of ORIGINAL PAGE {page.number}; not an additional page", crop))
     return views
-

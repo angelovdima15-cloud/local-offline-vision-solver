@@ -26,6 +26,7 @@ class LocalModel:
         self.session = session
         self.metrics: list[dict] = []
         self.context_owned = False
+        self.encoded_views = {}
         self.client = httpx.Client(base_url=config.endpoint, timeout=config.timeout_seconds,
                                    trust_env=False, follow_redirects=False, transport=transport)
 
@@ -40,6 +41,7 @@ class LocalModel:
             if exc_type is None:
                 raise
         finally:
+            self.encoded_views.clear()
             self.client.close()
 
     def clear_context(self) -> None:
@@ -51,6 +53,7 @@ class LocalModel:
                                  "with --slots; no old context may be reused.") from exc
 
     def begin_session(self) -> None:
+        self.encoded_views.clear()
         self.health()
         self.clear_context()
         self.context_owned = True
@@ -69,9 +72,12 @@ class LocalModel:
                  views: list[tuple[str, Path]], *, seed: int = 17) -> T:
         content: list[dict] = [{"type": "text", "text": instruction}]
         for label, path in views:
+            stat=path.stat();signature=(stat.st_mtime_ns,stat.st_size)
+            if path not in self.encoded_views or self.encoded_views[path][0]!=signature:
+                self.encoded_views[path]=(signature,base64.b64encode(path.read_bytes()).decode('ascii'))
             content.append({"type": "text", "text": label})
             content.append({"type": "image_url", "image_url": {
-                "url": "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")}})
+                "url": "data:image/png;base64," + self.encoded_views[path][1]}})
         messages = [
             {"role": "system", "content": (
                 "You solve academic tasks from photographs. Only this request's pages are relevant. "

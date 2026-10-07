@@ -10,11 +10,11 @@ def gpu_snapshot() -> list[dict]:
     if not executable:
         return []
     try:
-        process = subprocess.run([executable, "--query-gpu=name,memory.total,memory.used,utilization.gpu",
+        process = subprocess.run([executable, "--query-gpu=name,memory.total,memory.used,utilization.gpu,driver_version",
                                   "--format=csv,noheader,nounits"], capture_output=True, text=True,
-                                 timeout=4, check=True)
+                                 timeout=4, check=True,creationflags=subprocess.CREATE_NO_WINDOW if __import__('os').name=='nt' else 0)
         return [{"name": row[0].strip(), "total_megabytes": int(row[1]),
-                 "used_megabytes": int(row[2]), "utilization_percent": int(row[3])}
+                 "used_megabytes": int(row[2]), "utilization_percent": int(row[3]),'driver_version':row[4].strip()}
                 for row in csv.reader(io.StringIO(process.stdout))]
     except (OSError, ValueError, IndexError, subprocess.SubprocessError):
         return []
@@ -45,4 +45,3 @@ class ResourceMonitor:
         return {"gpu_peak_used_megabytes": max((g["used_megabytes"] for s in self.samples for g in s), default=None),
                 "gpu_samples": len(self.samples), "gpu_last_snapshot": self.samples[-1] if self.samples else [],
                 "note": "Device-wide VRAM, includes other processes; sampled every 2 seconds."}
-

@@ -13,8 +13,9 @@ def lan_addresses() -> list[str]:
     # Enumerate interfaces directly: no DNS resolution or Internet connectivity probe.
     candidates = [ip.ip for adapter in ifaddr.get_adapters() for ip in adapter.ips if isinstance(ip.ip, str)]
     return sorted({address for address in candidates
-                   if not ipaddress.ip_address(address).is_loopback
-                   and ipaddress.ip_address(address).is_private})
+                    if not ipaddress.ip_address(address).is_loopback
+                    and ipaddress.ip_address(address).version==4
+                    and ipaddress.ip_address(address).is_private},key=lambda address:(ipaddress.ip_address(address).is_link_local,address))
 
 
 class Advertisement:

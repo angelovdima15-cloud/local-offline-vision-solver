@@ -2,6 +2,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 import json
 import subprocess
+import logging
+from logging.handlers import RotatingFileHandler
+import threading
+import time
 
 from .config import Config
 from .resources import gpu_snapshot
@@ -25,15 +29,17 @@ def server_command(config: Config) -> list[str]:
 
 
 def start_server(config: Config) -> int:
-    process = launch_server(config)
-    try:
-        return process.wait()
-    except KeyboardInterrupt:
-        stop_server(process)
-        return 130
+    from .runtime_lock import runtime_process_lock
+    with runtime_process_lock(config.inference.endpoint):
+        process = launch_server(config)
+        try:
+            return process.wait()
+        except KeyboardInterrupt:
+            stop_server(process)
+            return 130
 
 
-def launch_server(config: Config) -> subprocess.Popen:
+def launch_server(config: Config,supervisor=None) -> subprocess.Popen:
     for name in ("executable", "model", "projector"):
         value = getattr(config.runtime, name)
         if not value.is_file():
@@ -41,13 +47,26 @@ def launch_server(config: Config) -> subprocess.Popen:
     args = server_command(config)
     # Never restart after OOM with silently weakened quantization/context/image resolution.
     # The user can explicitly select a reviewed runtime profile and benchmark it.
-    log = config.runtime.executable.parent / "server.log"
+    log = config.paths.logs / "runtime.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     print(f"Local inference: {config.inference.endpoint}; startup log: {log}", flush=True)
-    with log.open("a", encoding="utf-8") as handle:
-        handle.write("\nSTART " + json.dumps(args) + "\n")
-        handle.flush()
-        return subprocess.Popen(args, stdout=handle, stderr=subprocess.STDOUT)
+    runtime_logger=logging.getLogger('vision.runtime')
+    if not runtime_logger.handlers:
+        handler=RotatingFileHandler(log,maxBytes=10*1024**2,backupCount=5,encoding='utf-8')
+        formatter=logging.Formatter('%(asctime)s UTC %(message)s');formatter.converter=time.gmtime
+        handler.setFormatter(formatter);runtime_logger.addHandler(handler);runtime_logger.setLevel(logging.INFO);runtime_logger.propagate=False
+    runtime_logger.info('START %s',json.dumps(args))
+    if supervisor:
+        process=supervisor.launch(args,stdout=subprocess.PIPE)
+    else:
+        process=subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,creationflags=subprocess.CREATE_NO_WINDOW if __import__('os').name=='nt' else 0)
+    def drain():
+        try:
+            for line in iter(process.stdout.readline,b''):
+                runtime_logger.info('%s',line.decode('utf-8',errors='replace').rstrip())
+        finally:process.stdout.close()
+    threading.Thread(target=drain,daemon=True,name='vision-runtime-log').start()
+    return process
 
 
 def stop_server(process: subprocess.Popen) -> None:

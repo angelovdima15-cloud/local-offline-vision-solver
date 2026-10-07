@@ -8,7 +8,8 @@ from .config import Config
 from .images import ImageInputError, Page, prepare_page, retry_views
 from .inference import LocalModel
 from .locking import inference_lock
-from .models import Audit, Draft, Reading
+from .models import Audit, Draft, Reading, VerifiedAnswer
+from .image_policy import DECODE_LOCK, ImagePolicy, check_prepared
 from .render import CardRenderer, answer_text
 from .resources import ResourceMonitor
 from .storage import Session, write_json
@@ -47,6 +48,11 @@ def draft_issues(draft: Draft, reading: Reading) -> list[str]:
         issues.append(f"Question coverage mismatch: expected {sorted(expected)}, got {draft.answered_question_ids}")
     if draft.detected_language != reading.detected_language:
         issues.append("Declared answer language differs from primary instructional language")
+    if not draft.numeric_checks:
+        if draft.numeric_checks_applicability!='not_applicable' or not draft.numeric_checks_reason.strip():
+            issues.append('Empty numeric checks require explicit not_applicable and an explanation; otherwise checks are missing')
+    elif draft.numeric_checks_applicability=='not_applicable':
+        issues.append('Numeric checks contradict not_applicable')
     return issues
 
 
@@ -61,6 +67,15 @@ class Pipeline:
         self.config = config
 
     def solve(self, paths: list[Path], *, session: Session | None = None) -> tuple[Session, dict]:
+        from .job_service import save_answer, finalize_outputs
+        session, answer = self.verify(paths, session=session)
+        save_answer(session, answer)
+        session.event("ANSWER_READY")
+        result = finalize_outputs(self.config, session, answer, time.time(), session.event)
+        session.event("COMPLETE")
+        return session, result
+
+    def verify(self, paths: list[Path], *, session: Session | None = None) -> tuple[Session, VerifiedAnswer]:
         # Never keep model messages, reading or drafts in instance state across sessions.
         session = session or Session(self.config.pipeline.session_directory)
         started = time.perf_counter()
@@ -74,10 +89,15 @@ class Pipeline:
                 if sum(p.stat().st_size for p in paths) > self.config.pipeline.max_input_megabytes * 1024**2:
                     raise ImageInputError("Images exceed configured total input limit")
                 session.event("VALIDATING_IMAGES", page_count=len(paths))
-                pages = [prepare_page(path, index, session.path) for index, path in enumerate(paths, 1)]
+                pages = []
+                for index, path in enumerate(paths, 1):
+                    with DECODE_LOCK:
+                        ImagePolicy(self.config.server.max_image_pixels).inspect(path)
+                        pages.append(prepare_page(path, index, session.path))
+                    check_prepared(session.path, self.config.pipeline.max_prepared_megabytes * 1024**2)
                 write_json(session.path / "image_quality.json", [p.summary() for p in pages])
                 original_views = [(f"ORIGINAL PAGE {p.number} of {len(pages)}", p.oriented) for p in pages]
-                with inference_lock(self.config.pipeline.session_directory), LocalModel(self.config.inference, session) as model:
+                with inference_lock(self.config.inference.endpoint), LocalModel(self.config.inference, session) as model:
                     model.begin_session()
                     reading = self._read(model, session, pages, original_views)
                     for recovery in range(self.config.pipeline.max_reading_retries + 1):
@@ -95,11 +115,6 @@ class Pipeline:
                     model.clear_context()
                     model.context_owned = False
                     session.event("VERIFYING", context_cleared=True)
-                    session.event("RENDERING")
-                    # Preserve validated text even when a formula fails to render.
-                    (session.path / "answer.txt").write_text(answer_text(draft), encoding="utf-8")
-                    write_json(session.path / "verified_answer.json", draft.model_dump())
-                    cards = CardRenderer(self.config.render, session.path).render(draft, session.path / "cards")
                     elapsed = time.perf_counter() - started
                     warnings = list(dict.fromkeys(reading.warnings + draft.warnings))
                     if elapsed > self.config.pipeline.latency_target_seconds:
@@ -114,14 +129,12 @@ class Pipeline:
                               "confidence_note": "Subjective model estimate; not calibrated or a guarantee.",
                               "verification": {"audit": audit.model_dump(), "numeric_checks": arithmetic,
                                                "independent_pass_completed": True},
-                              "render_mode": self.config.render.math_engine, "cards": cards,
+                              "render_mode": self.config.render.math_engine,
                               "warnings": warnings,
                               "metrics": {"total_seconds": round(elapsed, 3), "inference": model.metrics,
                                           "resources": resources.summary()},
                               "runtime": self.config.runtime.model_dump(mode="json")}
-                    write_json(session.path / "result.json", result)
-                    session.event("COMPLETE", seconds=round(elapsed, 3), cards=len(cards))
-                    return session, result
+                    return session, VerifiedAnswer(session_id=session.id, draft=draft, metadata=result)
             except Exception as exc:
                 error = exc if isinstance(exc, PipelineError) else PipelineError(str(exc), session)
                 session.event("ERROR", code=error.code, message=str(error),
@@ -141,7 +154,9 @@ class Pipeline:
         if force_retry or reading.uncertainties or not reading.sufficient_information:
             for attempt in range(self.config.pipeline.max_reading_retries):
                 session.event("UNDERSTANDING", recovery_attempt=attempt + 1)
-                crops = retry_views(pages, reading.uncertainties, session.path)
+                with DECODE_LOCK:
+                    crops = retry_views(pages, reading.uncertainties, session.path)
+                check_prepared(session.path, self.config.pipeline.max_prepared_megabytes * 1024**2)
                 instruction = (prompts.READ + "\nRe-read from ORIGINALS and their detail crops. "
                                "Compare alternatives; only resolve ambiguities supported by pixels. "
                                "Previous interpretation:\n" + serialize(reading) + "\n" + feedback)
@@ -169,6 +184,15 @@ class Pipeline:
             arithmetic = check_equalities(candidate.numeric_checks)
             issues = draft_issues(candidate, reading)
             independent_issues = draft_issues(independent, reading)
+            renderer = CardRenderer(self.config.render, session.path)
+            for value, target in ((candidate, issues), (independent, independent_issues)):
+                for block in value.final_answer + value.solution:
+                    if block.kind == "math":
+                        try:
+                            renderer.math_image(block.content)
+                        except RuntimeError as exc:
+                            target.append(str(exc))
+            write_json(session.path / f"independent_solution_{attempt:02d}.json", independent.model_dump())
             independent_arithmetic = check_equalities(independent.numeric_checks)
             audit_prompt = (prompts.AUDIT + source + "\nCandidate:\n" + serialize(candidate)
                             + "\nIndependent solution:\n" + serialize(independent)

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "local-offline-vision-solver"
-version = "0.2.0"
-description = "Offline photographed academic task solver with LAN and Apple companion apps"
+version = "0.4.0"
+description = "Local offline academic vision solver with a mobile LAN website"
 requires-python = ">=3.12"
 dependencies = [
   "httpx>=0.28,<0.29",
@@ -19,6 +19,9 @@ dependencies = [
   "uvicorn>=0.34,<1",
   "zeroconf>=0.145,<1",
   "ifaddr>=0.2,<1",
+  "pillow-heif>=1.7,<2",
+  "qrcode>=8.2,<9",
+  "PySide6==6.11.2",
 ]
 
 [project.optional-dependencies]
@@ -26,9 +29,13 @@ test = ["pytest>=8.3,<10"]
 
 [project.scripts]
 vision-solver = "local_vision_solver.cli:main"
+vision-desktop = "local_vision_solver.desktop.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+local_vision_solver = ["web/*.html", "web/*.css", "web/*.js", "web/*.svg", "assets.lock.json", "desktop/qml/*.qml", "desktop/qml/components/*.qml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
